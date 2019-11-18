@@ -1,7 +1,6 @@
 all:
-	nasm -f elf32 ./SBTG.asm
-	gcc -m32 sbtg_test.c SBTG.o -o sbtg_test
+	gcc -m32 sbtg_test.c -o sbtg_test
+	gcc -m32 test.c -o test
 
 clean:
-	rm SBTG.o
-	rm sbtg_test
+	rm sbtg_test test
