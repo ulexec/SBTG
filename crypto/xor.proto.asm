@@ -1,0 +1,16 @@
+PRELUDE
+MOV REG1, ARG1 --> address of target buf
+MOV REG2, ARG2 --> size of target buf
+MOV REG3, KEY
+
+loop:
+MOV REG4, [REG1]
+XOR REG3, REG4
+MOV [REG1], REG3
+DEC REG2
+ADD REG1
+CMP REG2, 0
+JNZ loop
+
+EPILOGUE
+RET
