@@ -27,6 +27,10 @@
 #define OP_POP          0x58
 #define OP_POP_DREG	0x8f
 #define OP_NOP		0x90
+#define OP_NOT		0xd0f7
+#define OP_AND		0xc021
+#define OP_DEC		0x48
+#define OP_ADD_REG_IMM	0xc083
 #define OP_XOR_REG_REG  0xc031	
 #define OP_MOV_REG_REG  0xc089
 #define OP_MOV_REG_DREG 0x008b
@@ -45,11 +49,17 @@ void mov_reg_dreg_0 (uint8_t *, uint32_t*, uint32_t, uint32_t);
 void mov_reg_dreg_1 (uint8_t *, uint32_t*, uint32_t, uint32_t);
 void mov_dreg_reg_0 (uint8_t *, uint32_t*, uint32_t, uint32_t);
 void mov_dreg_reg_1 (uint8_t *, uint32_t*, uint32_t, uint32_t);
+void mov_reg_reg_0 (uint8_t *, uint32_t*, uint32_t, uint32_t);
+void mov_reg_reg_1 (uint8_t *, uint32_t*, uint32_t, uint32_t);
+void xor_reg_reg_0 (uint8_t *, uint32_t*, uint32_t, uint32_t);
+void xor_reg_reg_1 (uint8_t *, uint32_t*, uint32_t, uint32_t);
 void Sbtg_XOR (uint8_t *, size_t, uint8_t *, size_t, uint32_t *);
 void (*pushad_variants_arr[])(uint8_t *, uint32_t *) = {pushad_0, pushad_1};
 void (*prelude_variants_arr[])(uint8_t *, uint32_t *) = {prelude_0, prelude_1};
 void (*mov_reg_dreg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {mov_reg_dreg_0, mov_reg_dreg_1};
 void (*mov_dreg_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {mov_dreg_reg_0, mov_dreg_reg_1};
+void (*mov_reg_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {mov_reg_reg_0, mov_reg_reg_1};
+void (*xor_reg_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {xor_reg_reg_0, xor_reg_reg_1};
 void (*cipher_types_arr[])(uint8_t *, uint32_t, uint8_t *, uint32_t, uint32_t *) = {Sbtg_XOR};
 
 void gensecuence(uint32_t *array, size_t size){
@@ -94,7 +104,7 @@ void pushad_0 (uint8_t *decryptor_buff, uint32_t *offset) {
 
 void pushad_1 (uint8_t *decryptor_buff, uint32_t *offset) {
 	for (int i = 0; i < 8; i++) {
-		*(uint8_t*)(decryptor_buff + *offset) = OP_PUSH + i;
+		*(uint8_t*)(decryptor_buff + *offset) = (OP_PUSH | i);
 		*offset += 1;
 	}	
 }
@@ -134,10 +144,102 @@ void mov_dreg_reg_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, u
 }
 
 void mov_dreg_reg_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t reg2) {
-	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_MOV_REG_DREG, reg1, reg2);
+	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_MOV_DREG_REG, reg2, reg1);
 	*offset += 2;
 }
 
+void mov_reg_reg_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t reg2) {	
+	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_MOV_REG_REG, reg2, reg1);	
+	*offset += 2;
+}
+
+void mov_reg_reg_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t reg2) {
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_PUSH | reg1);
+	*offset += 1;
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_POP | reg2);
+	*offset += 1;
+}
+
+void xor_reg_reg_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t reg2) {
+	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_XOR_REG_REG, reg2, reg1);	
+	*offset += 2;
+}
+
+void xor_reg_reg_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t reg2) {
+	// A XOR B = (NOT(A AND B)) AND (NOT(NOT A AND NOT B))
+	void (*mov_fptr)(uint8_t *, uint32_t *, uint32_t, uint32_t);
+	int vregs[4];
+	int idx;
+
+	gensecuence(vregs, sizeof(vregs)/sizeof(uint32_t));
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_PUSH | vregs[0]);		
+	*offset += 1;
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_PUSH | vregs[1]);		
+	*offset += 1;
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_PUSH | vregs[2]);		
+	*offset += 1;
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_PUSH | vregs[3]);		
+	*offset += 1;
+
+	idx = genrand(sizeof(mov_reg_reg_variants_arr)/sizeof(uintptr_t));			
+	mov_fptr = mov_reg_reg_variants_arr[idx];
+	(*mov_fptr)(decryptor_buff, offset, reg1, REG_ESI); 	
+	
+	idx = genrand(sizeof(mov_reg_reg_variants_arr)/sizeof(uintptr_t));			
+	mov_fptr = mov_reg_reg_variants_arr[idx];
+	(*mov_fptr)(decryptor_buff, offset, reg2, REG_EDI); 			
+	
+	idx = genrand(sizeof(mov_reg_reg_variants_arr)/sizeof(uintptr_t));			
+	mov_fptr = mov_reg_reg_variants_arr[idx];
+	(*mov_fptr)(decryptor_buff, offset, reg2, vregs[0]); 			
+
+	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_AND, vregs[0], REG_ESI);
+	*offset += 2;	
+
+	*(uint16_t*)(decryptor_buff + *offset) = OP_DST(OP_NOT, vregs[0]);
+	*offset += 2;	
+	
+	idx = genrand(sizeof(mov_reg_reg_variants_arr)/sizeof(uintptr_t));			
+	mov_fptr = mov_reg_reg_variants_arr[idx];
+	(*mov_fptr)(decryptor_buff, offset, REG_ESI, vregs[1]); 			
+
+	*(uint16_t*)(decryptor_buff + *offset) = OP_DST(OP_NOT, vregs[1]);
+	*offset += 2;	
+		
+	idx = genrand(sizeof(mov_reg_reg_variants_arr)/sizeof(uintptr_t));			
+	mov_fptr = mov_reg_reg_variants_arr[idx];
+	(*mov_fptr)(decryptor_buff, offset, REG_EDI, vregs[2]); 			
+
+	*(uint16_t*)(decryptor_buff + *offset) = OP_DST(OP_NOT, vregs[2]);
+	*offset += 2;	
+	
+	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_AND, vregs[1], vregs[2]);
+	*offset += 2;	
+
+	*(uint16_t*)(decryptor_buff + *offset) = OP_DST(OP_NOT, vregs[1]);
+	*offset += 2;	
+	
+	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_AND, vregs[0], vregs[1]);
+	*offset += 2;	
+	
+	idx = genrand(sizeof(mov_reg_reg_variants_arr)/sizeof(uintptr_t));			
+	mov_fptr = mov_reg_reg_variants_arr[idx];
+	(*mov_fptr)(decryptor_buff, offset, vregs[0], REG_EDI); 			
+		
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_POP | vregs[3]);		
+	*offset += 1;
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_POP | vregs[2]);		
+	*offset += 1;
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_POP | vregs[1]);		
+	*offset += 1;
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_POP | vregs[0]);		
+	*offset += 1;
+	
+	idx = genrand(sizeof(mov_reg_reg_variants_arr)/sizeof(uintptr_t));			
+	mov_fptr = mov_reg_reg_variants_arr[idx];
+	(*mov_fptr)(decryptor_buff, offset, REG_EDI, reg2); 			
+	
+}
 
 void Sbtg_XOR (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint8_t *target_buff, size_t target_buff_size, uint32_t *code_offset) {
 	void (*generic_fptr)(uint8_t *, uint32_t *);
@@ -164,16 +266,20 @@ void Sbtg_XOR (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint8_t *tar
 	*code_offset += 4;
 	
 	loop_start = *code_offset;
-	idx = genrand(sizeof(prelude_variants_arr)/sizeof(uintptr_t));			
+	idx = genrand(sizeof(mov_reg_dreg_variants_arr)/sizeof(uintptr_t));			
 	mov_fptr = mov_reg_dreg_variants_arr[idx];
 	(*mov_fptr)(decryptor_buff, code_offset, vregs[0], vregs[3]); 			// MOV REG4, [REG1]
 	
-	*(uint16_t*)(decryptor_buff + *code_offset) = OP_BUILD2(OP_XOR_REG_REG, vregs[3], vregs[2]);			// XOR REG3, KEY
-	*code_offset += 2;
-	idx = genrand(sizeof(prelude_variants_arr)/sizeof(uintptr_t));			
-	mov_fptr = mov_dreg_reg_variants_arr[idx];
-	(*mov_fptr)(decryptor_buff, code_offset, vregs[3], vregs[0]); 			// MOV REG4, [REG1]
+	idx = genrand(sizeof(xor_reg_reg_variants_arr)/sizeof(uintptr_t));			
+	mov_fptr = xor_reg_reg_variants_arr[idx];
+	(*mov_fptr)(decryptor_buff, code_offset, vregs[2], vregs[3]); 			// XOR REG4, REG3
 	
+	idx = genrand(sizeof(mov_dreg_reg_variants_arr)/sizeof(uintptr_t));			
+	mov_fptr = mov_dreg_reg_variants_arr[idx];
+	(*mov_fptr)(decryptor_buff, code_offset, vregs[3], vregs[0]); 			// MOV [REG1], REG4
+
+	*(uint8_t*)(decryptor_buff + *code_offset) = (OP_DEC | vregs[1]);		// DEC REG2
+	*code_offset += 1;
 	*(uint8_t*)(decryptor_buff + *code_offset) = 0xcc;
 
 }
