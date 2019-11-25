@@ -337,10 +337,10 @@ void inc_reg_2 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32
 	*offset += 1;
 }
 
-void cmp_reg_0_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t reg2) {
+void cmp_reg_0_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t val) {
 	*(uint16_t*)(decryptor_buff + *offset) = OP_DST(OP_CMP_REG_IMM, reg1);
 	*offset += 2;
-	*(uint8_t*)(decryptor_buff + *offset) = 0x00;
+	*(uint8_t*)(decryptor_buff + *offset) = val;
 	*offset += 1;
 }
 
@@ -363,7 +363,7 @@ void sub_reg_imm_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, ui
 }
 
 void sub_reg_imm_2 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t val) {
-	if (val % 2 == 0) {
+	if (val % 2) {
 		sub_reg_imm_0 (decryptor_buff, offset, reg1, val);
 		
 	} else {
