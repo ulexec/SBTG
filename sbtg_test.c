@@ -119,7 +119,7 @@ void (*epilogue_variants_arr[])(uint8_t *, uint32_t *) = {epiloge_0, epiloge_1};
 void (*cmp_reg_0_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {cmp_reg_0_0, cmp_reg_0_1};
 void (*dec_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {dec_reg_0, dec_reg_1, dec_reg_2};
 void (*inc_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {inc_reg_0, inc_reg_1, inc_reg_2};
-void (*xor_reg_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {/*xor_reg_reg_0,*/ xor_reg_reg_1};
+void (*xor_reg_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {xor_reg_reg_0, xor_reg_reg_1};
 void (*mov_reg_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {mov_reg_reg_0, mov_reg_reg_1};
 void (*mov_reg_dreg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {mov_reg_dreg_0, mov_reg_dreg_1};
 void (*mov_dreg_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {mov_dreg_reg_0, mov_dreg_reg_1};
@@ -279,14 +279,14 @@ void mov_dreg_reg_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, u
 }
 
 void mov_reg_reg_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t reg2) {	
-	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_MOV_REG_REG, reg1, reg2);	
+	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_MOV_REG_REG, reg2, reg1);	
 	*offset += sizeof(uint16_t);
 }
 
 void mov_reg_reg_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t reg2) {
-	*(uint8_t*)(decryptor_buff + *offset) = (OP_PUSH | reg2);
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_PUSH | reg1);
 	*offset += sizeof(uint8_t);
-	*(uint8_t*)(decryptor_buff + *offset) = (OP_POP | reg1);
+	*(uint8_t*)(decryptor_buff + *offset) = (OP_POP | reg2);
 	*offset += sizeof(uint8_t);
 }
 
@@ -308,11 +308,11 @@ void xor_reg_reg_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, ui
 		*offset += sizeof(uint8_t);
 	}
 
-	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, REG_ESI, reg1);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, reg1, REG_ESI);
 	
-	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, REG_EDI, reg2);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, reg2, REG_EDI);
 	
-	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, vregs[0], reg2);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, reg2, vregs[0]);
 	
 	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_AND, vregs[0], REG_ESI);
 	*offset += sizeof(uint16_t);	
@@ -320,12 +320,12 @@ void xor_reg_reg_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, ui
 	*(uint16_t*)(decryptor_buff + *offset) = OP_DST(OP_NOT, vregs[0]);
 	*offset += sizeof(uint16_t);	
 	
-	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, vregs[1], REG_ESI);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, REG_ESI, vregs[1]);
 
 	*(uint16_t*)(decryptor_buff + *offset) = OP_DST(OP_NOT, vregs[1]);
 	*offset += sizeof(uint16_t);	
 		
-	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, vregs[2], REG_EDI);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, REG_EDI, vregs[2]);
 
 	*(uint16_t*)(decryptor_buff + *offset) = OP_DST(OP_NOT, vregs[2]);
 	*offset += sizeof(uint16_t);	
@@ -339,13 +339,13 @@ void xor_reg_reg_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, ui
 	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_AND, vregs[0], vregs[1]);
 	*offset += sizeof(uint16_t);	
 	
-	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, REG_EDI, vregs[0]);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, vregs[0], REG_EDI);
 		
 	for (int i = sizeof(vregs)/sizeof(uint32_t) -1; i >= 0; i--) {
 		*(uint8_t*)(decryptor_buff + *offset) = (OP_POP | vregs[i]);		
 		*offset += sizeof(uint8_t);
 	}
-	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, reg2, REG_EDI);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, REG_EDI, reg2);
 }
 
 void dec_reg_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t reg2) {
@@ -576,7 +576,7 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	} 
 
 	// MOV REG3, S
-	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[1], vregs[0]);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[0], vregs[1]);
 	INVOKE_RANDFUNC(add_reg_imm_variants_arr, decryptor_buff, code_offset, vregs[1], (S - delta));
 	
 	// MOV REG5, 256
@@ -590,7 +590,7 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	INVOKE_RANDFUNC(sub_b_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[0], vregs[2]);
 	
 	// MOV REG5, REG1
-	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[3], vregs[1]);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[1], vregs[3]);
 
 	// ADD REG5, REG4
 	INVOKE_RANDFUNC(add_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[3], vregs[0]);
@@ -611,7 +611,7 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	*code_offset += sizeof(uint8_t);
 
 	// MOV R4, K
-	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[2], vregs[4]);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[4], vregs[3]);
 	INVOKE_RANDFUNC(add_reg_imm_variants_arr, decryptor_buff, code_offset, vregs[4], (K - delta));
 
 }
