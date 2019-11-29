@@ -788,11 +788,14 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, vregs[1]);
 	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[2], vregs[2]);
 	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, vregs[1]);
-	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, REG_ESI);
+	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, REG_ESI);
 
 	// MOV REG1, 0x0
 	mov_reg_imm_0 (decryptor_buff, code_offset, REG_EBP, 0x0);
 	
+	*(uint8_t*)(decryptor_buff + *code_offset) = 0xcc;
+	*code_offset += 1;
+
 	loop_start = *code_offset;
 
 	// MOV REG_ESI, S
@@ -866,7 +869,11 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	// JNZ IMM
 	cjmp_near_imm_0(decryptor_buff, code_offset, loop_start, CJMP_NZ_);
 
-	*(uint8_t*)(decryptor_buff + code_offset) = 0xcc;
+	*(uint8_t*)(decryptor_buff + *code_offset) = 0xcc;
+	*code_offset += 1;
+
+	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, REG_ESI);
+	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, REG_ESI);
 
 }
 
