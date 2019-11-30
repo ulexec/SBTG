@@ -41,6 +41,7 @@
 #define OP_AND				0xc021
 #define OP_DEC				0x48
 #define OP_INC				0x40
+#define OP_LEA_REG_REG		0x018d
 #define OP_DIV_REG			0xf0f7
 #define OP_ADD_REG_B_IMM	0xc083
 #define OP_ADD_REG_IMM		0xc081
@@ -90,7 +91,9 @@ void epiloge_0 (uint8_t *, uint32_t *);
 void epiloge_1 (uint8_t *, uint32_t *);
 void Sbtg_XOR (uint8_t *, size_t, uint32_t *);
 void push_0 (uint8_t *, uint32_t *, uint32_t);
+void push_1 (uint8_t *, uint32_t *, uint32_t);
 void pop_0 (uint8_t *, uint32_t *, uint32_t);
+void pop_1 (uint8_t *, uint32_t *, uint32_t);
 void div_reg_0 (uint8_t *, uint32_t *, uint32_t);
 void delta_0 (uint8_t *, uint32_t *, uint32_t, uint32_t*);
 void delta_1 (uint8_t *, uint32_t *, uint32_t, uint32_t*);
@@ -132,10 +135,10 @@ void movzx_reg_b_reg_0 (uint8_t *, uint32_t*, uint32_t, uint32_t);
 void (*cipher_types_arr[])(uint8_t *, uint32_t, uint32_t *) = {Sbtg_XOR};
 void (*popad_variants_arr[])(uint8_t *, uint32_t *) = {popad_0};
 void (*pushad_variants_arr[])(uint8_t *, uint32_t *) = {pushad_0, pushad_1};
-void (*push_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {push_0}; // add more atomic variant
+void (*push_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {push_0, push_1}; // add more atomic variant
 void (*div_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {div_reg_0}; // add more atomic variant
 void (*delta_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t*) = {delta_0, delta_1};
-void (*pop_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {pop_0}; // add more atomic variant
+void (*pop_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {pop_0, pop_1}; // add more atomic variant
 void (*prelude_variants_arr[])(uint8_t *, uint32_t *) = {prelude_0, prelude_1};
 void (*epilogue_variants_arr[])(uint8_t *, uint32_t *) = {epiloge_0, epiloge_1};
 void (*cmp_reg_0_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {cmp_reg_0_0, cmp_reg_0_1};
@@ -211,11 +214,28 @@ void push_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {
 	*offset += sizeof(uint8_t);
 }
 
+void push_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {	
+	INVOKE_RANDFUNC(sub_reg_imm_variants_arr, decryptor_buff, offset, REG_ESP, 4);
+
+	*(uint16_t*)(decryptor_buff + *offset) = OP_SRC(0x0489, reg);
+	*offset += sizeof(uint16_t);
+	*(uint8_t*)(decryptor_buff + *offset) = 0x24;
+	*offset += sizeof(uint8_t);
+}
+
 void pop_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {
 	*(uint8_t*)(decryptor_buff + *offset) = (OP_POP | reg);
 	*offset += sizeof(uint8_t);
 }
 
+void pop_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {
+	*(uint16_t*)(decryptor_buff + *offset) = OP_SRC(0x048b, reg);
+	*offset += sizeof(uint16_t);
+	*(uint8_t*)(decryptor_buff + *offset) = 0x24;
+	*offset += sizeof(uint8_t);
+	
+	INVOKE_RANDFUNC(add_reg_imm_variants_arr, decryptor_buff, offset, REG_ESP, 4);
+}
 
 void pushad_0 (uint8_t *decryptor_buff, uint32_t *offset) {
 	*(uint8_t*)(decryptor_buff + *offset) = OP_PUSHAD;
