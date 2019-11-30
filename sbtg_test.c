@@ -13,35 +13,35 @@
 #define __NR_execveat	  358
 #define __NR_memfd_create 356
 
-#define REG_AL_MASK		0x0
-#define REG_AH_MASK		0x2000
-#define REG_SI_MASK		0x3000
-#define REG_DI_MASK		0x3800
+#define REG_AL_MASK			0x0
+#define REG_AH_MASK			0x2000
+#define REG_SI_MASK			0x3000
+#define REG_DI_MASK			0x3800
 
-#define REG_EAX			0x0
-#define REG_ECX			0x1
-#define REG_EDX			0x2
-#define REG_EBX			0x3
-#define REG_ESP			0x4
-#define REG_EBP			0x5
-#define REG_ESI			0x6
-#define REG_EDI			0x7
-#define CJMP_NZ_		0x1
-#define CJMP_Z_			0x0
-#define SIB_MASK		0x4000
-#define PAGE_SIZE		0x1000
-#define OP_PUSHAD		0x60
-#define OP_PUSH			0x50
+#define REG_EAX				0x0
+#define REG_ECX				0x1
+#define REG_EDX				0x2
+#define REG_EBX				0x3
+#define REG_ESP				0x4
+#define REG_EBP				0x5
+#define REG_ESI				0x6
+#define REG_EDI				0x7
+#define CJMP_NZ_			0x1
+#define CJMP_Z_				0x0
+#define SIB_MASK			0x4000
+#define PAGE_SIZE			0x1000
+#define OP_PUSHAD			0x60
+#define OP_PUSH				0x50
 #define OP_PUSH_DREG		0x30ff
-#define OP_POPAD		0x61
+#define OP_POPAD			0x61
 #define OP_POP          	0x58
-#define OP_POP_DREG		0x8f
-#define OP_NOP			0x90
-#define OP_NOT			0xd0f7
-#define OP_AND			0xc021
-#define OP_DEC			0x48
-#define OP_INC			0x40
-#define OP_DIV_REG		0xf0f7
+#define OP_POP_DREG			0x8f
+#define OP_NOP				0x90
+#define OP_NOT				0xd0f7
+#define OP_AND				0xc021
+#define OP_DEC				0x48
+#define OP_INC				0x40
+#define OP_DIV_REG			0xf0f7
 #define OP_ADD_REG_B_IMM	0xc083
 #define OP_ADD_REG_IMM		0xc081
 #define OP_ADD_REG_REG		0xc001
@@ -52,7 +52,7 @@
 #define OP_CMP_REG_IMM		0xf883
 #define OP_TEST_REG_REG		0xc085
 #define OP_XOR_REG_REG  	0xc031	
-#define OP_XOR_B_REG_B_REG  	0xc030	
+#define OP_XOR_B_REG_B_REG  0xc030	
 #define OP_MOV_REG_REG  	0xc089
 #define OP_MOV_REG_DREG 	0x008b
 #define OP_MOV_DREG_REG 	0x0089
@@ -60,8 +60,15 @@
 #define OP_MOV_B_DREG_REG 	0x0088
 #define OP_MOV_REG_IMM 		0x00b8
 #define OP_MOVZX_REG_REG 	0xb60f
-#define OP_ENTER		0x000000c8
-#define OP_LEAVE		0xc9
+#define OP_FINIT			0xe3db9b
+#define OP_FLD1  			0xe8d9
+#define OP_FLDZ 			0xeed9
+#define OP_FLDN2  			0xedd9
+#define OP_FLDLG2  			0xecd9
+#define OP_FLDPI			0xebd9
+#define OP_FNSTENV 			0x30d9
+#define OP_ENTER			0x000000c8
+#define OP_LEAVE			0xc9
 #define OP_CJMP_NEAR_IMM 	0x74
 #define OP_JMP_NEAR_IMM 	0xe9
 #define OP_CALL_NEAR_IMM 	0xe8
@@ -72,7 +79,6 @@
 #define CONF_PRESERVE_REGISTERS	0b00000001
 #define CONF_RANDOM_CIPHER	0b00000010
 	
-
 
 void pushad_0 (uint8_t *, uint32_t *);
 void pushad_1 (uint8_t *, uint32_t *);
@@ -87,6 +93,7 @@ void push_0 (uint8_t *, uint32_t *, uint32_t);
 void pop_0 (uint8_t *, uint32_t *, uint32_t);
 void div_reg_0 (uint8_t *, uint32_t *, uint32_t);
 void delta_0 (uint8_t *, uint32_t *, uint32_t, uint32_t*);
+void delta_1 (uint8_t *, uint32_t *, uint32_t, uint32_t*);
 void dec_reg_0 (uint8_t *, uint32_t*, uint32_t, uint32_t);
 void dec_reg_1 (uint8_t *, uint32_t*, uint32_t, uint32_t);
 void dec_reg_2 (uint8_t *, uint32_t*, uint32_t, uint32_t);
@@ -127,7 +134,7 @@ void (*popad_variants_arr[])(uint8_t *, uint32_t *) = {popad_0};
 void (*pushad_variants_arr[])(uint8_t *, uint32_t *) = {pushad_0, pushad_1};
 void (*push_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {push_0}; // add more atomic variant
 void (*div_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {div_reg_0}; // add more atomic variant
-void (*delta_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t*) = {delta_0}; // add more atomic variant
+void (*delta_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t*) = {delta_0, delta_1};
 void (*pop_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {pop_0}; // add more atomic variant
 void (*prelude_variants_arr[])(uint8_t *, uint32_t *) = {prelude_0, prelude_1};
 void (*epilogue_variants_arr[])(uint8_t *, uint32_t *) = {epiloge_0, epiloge_1};
@@ -151,7 +158,6 @@ void (*add_reg_b_imm_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) 
 void (*add_reg_imm_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {add_reg_imm_0}; //add more
 void (*add_reg_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {add_reg_reg_0}; //add more
 void (*add_b_reg_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {add_b_reg_reg_0}; //add more
-
 
 void gensecuence(uint32_t *array, size_t size){
 	int x;
@@ -326,7 +332,6 @@ void movzx_reg_b_reg_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1
 	*offset += sizeof(uint8_t);
 	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(0xc0b6, reg2, reg1);	
 	*offset += sizeof(uint16_t);
-
 }
 
 void mov_reg_reg_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, uint32_t reg2) {	
@@ -618,6 +623,35 @@ void call_near_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t dest){
 	*offset += sizeof(uint32_t);	
 }
 
+void delta_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg, uint32_t *delta) {
+	uint16_t finst[5] = {OP_FLD1, OP_FLDZ, OP_FLDLG2, OP_FLDPI};
+	int idx = genrand(sizeof(finst)/sizeof(uint16_t));
+
+	*(uint32_t*)(decryptor_buff + *offset) = OP_FINIT;
+	*offset += 3;
+
+	*delta = *offset;
+	*(uint16_t*)(decryptor_buff + *offset) = finst[idx];
+	*offset += sizeof(uint16_t);
+	
+	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, offset, idx);
+	INVOKE_RANDFUNC(sub_reg_imm_variants_arr, decryptor_buff, offset, REG_ESP, 32);
+	
+	*(uint16_t*)(decryptor_buff + *offset) = OP_SRC(0x048d, idx);
+	*offset += sizeof(uint16_t);
+	*(uint8_t*)(decryptor_buff + *offset) = 0x24;
+	*offset += sizeof(uint8_t);
+	
+	*(uint16_t*)(decryptor_buff + *offset) = OP_DST(OP_FNSTENV, idx);
+	*offset += sizeof(uint16_t);
+
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, REG_ESP, reg);
+	INVOKE_RANDFUNC(add_reg_imm_variants_arr, decryptor_buff, offset, reg, 12);
+	INVOKE_RANDFUNC(mov_reg_dreg_variants_arr, decryptor_buff, offset, reg, reg);
+	INVOKE_RANDFUNC(add_reg_imm_variants_arr, decryptor_buff, offset, REG_ESP, 32);
+	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, offset, idx);
+}
+
 void delta_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg, uint32_t *delta) {
 	call_near_0(decryptor_buff, offset, *offset+sizeof(uint32_t));
 	*delta = *offset;
@@ -666,6 +700,11 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	gensecuence(vregs, sizeof(vregs)/sizeof(uint32_t));
 	gensecuence(zregs_order, sizeof(zregs_order)/sizeof(uint32_t));
 	gensecuence(config_order, sizeof(config_order)/sizeof(uint32_t));
+
+	/*
+	*(uint8_t*)(decryptor_buff + *code_offset) = 0xcc;
+	*code_offset += sizeof(uint8_t);
+	*/
 
 	INVOKE_RANDFUNC(delta_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]], &delta); 
 
