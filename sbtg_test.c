@@ -10,15 +10,18 @@
 #include <time.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <elf.h>
 
 #define __NR_execveat	  358
 #define __NR_memfd_create 356
+
+#define PAGE_SIZE 		 4096
+#define	PAGE_ALIGN(k) 		 (((k)+((PAGE_SIZE)-1))&(~((PAGE_SIZE)-1)))
 
 #define REG_AL_MASK			0x0
 #define REG_AH_MASK			0x2000
 #define REG_SI_MASK			0x3000
 #define REG_DI_MASK			0x3800
-
 #define REG_EAX				0x0
 #define REG_ECX				0x1
 #define REG_EDX				0x2
@@ -81,8 +84,9 @@
 #define OP_SRC(x, y)		x | y << 11	
 #define OP_DST(x, y)		x | y << 8	
 #define INVOKE_RANDFUNC(arr, ...)	arr[genrand(sizeof(arr)/sizeof(uintptr_t))](__VA_ARGS__)
-#define CONF_PRESERVE_REGISTERS	0b00000001
-#define CONF_RANDOM_CIPHER	0b00000010
+#define CONF_PRESERVE_REGISTERS	0x1
+#define CONF_RC4_CIPHER		0x2
+#define CONF_OUTPUT			0x3
 	
 void pushad_0 (uint8_t *, uint32_t *);
 void pushad_1 (uint8_t *, uint32_t *);
@@ -92,7 +96,6 @@ void prelude_0 (uint8_t *, uint32_t *);
 void prelude_1 (uint8_t *, uint32_t *);
 void epiloge_0 (uint8_t *, uint32_t *);
 void epiloge_1 (uint8_t *, uint32_t *);
-void Sbtg_XOR (uint8_t *, size_t, uint32_t *);
 void push_0 (uint8_t *, uint32_t *, uint32_t);
 void push_1 (uint8_t *, uint32_t *, uint32_t);
 void pop_0 (uint8_t *, uint32_t *, uint32_t);
@@ -142,7 +145,7 @@ void movzx_reg_b_reg_0 (uint8_t *, uint32_t*, uint32_t, uint32_t);
 void sbtg_write (uint8_t *, uint32_t *, size_t , uint8_t *);
 int sbtg_get_random_str(uint8_t *, size_t );
 
-void (*cipher_types_arr[])(uint8_t *, uint32_t, uint32_t *) = {Sbtg_XOR};
+//void (*cipher_types_arr[])(uint8_t *, uint32_t, uint32_t *) = {Sbtg_XOR};
 void (*popad_variants_arr[])(uint8_t *, uint32_t *) = {popad_0, popad_1};
 void (*pushad_variants_arr[])(uint8_t *, uint32_t *) = {pushad_0, pushad_1};
 void (*push_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {push_0, push_1};
@@ -617,13 +620,19 @@ void cjmp_near_imm_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t dest, 
 	*offset += sizeof(uint8_t);
 }
 
-void Sbtg_XOR (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *code_offset) {
+void Sbtg_XOR (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *code_offset, uint8_t* key) {
 	void (*generic_fptr)(uint8_t *, uint32_t *);
 	void (*mov_fptr)(uint8_t *, uint32_t *, uint32_t, uint32_t);
 	int idx;
 	int vregs[4];
 	int loop_start;
+	uint32_t ikey = 0;
+
+	for (int i = 0; i < 4; i++){
+    	ikey = 10 * ikey + key[i];
+	}
 	
+	printf("xor_key: %lx\n", ikey);
 	gensecuence(vregs, sizeof(vregs)/sizeof(uint32_t));
 	
 	// MOV REG1, ARG1
@@ -633,7 +642,7 @@ void Sbtg_XOR (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	mov_reg_dreg_disp_0 (decryptor_buff, code_offset, REG_EBP, vregs[1], 0xc);
 
 	// MOV REG3, KEY
-	mov_reg_imm_0 (decryptor_buff, code_offset, vregs[2], 0x41414141);
+	mov_reg_imm_0 (decryptor_buff, code_offset, vregs[2], ikey);
 
 	loop_start = *code_offset;
 	
@@ -685,7 +694,7 @@ void call_near_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t dest){
 void delta_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg, uint32_t *delta) {
 	uint16_t finst[] = {OP_FLDZ, OP_FLDPI, OP_FLDN2, OP_FLDLG2};
 	int idx;
-	
+
 	for (int i=0; i < genrand(20) + 5; i++) {
 		idx = genrand(sizeof(finst)/sizeof(uint16_t));
 
@@ -762,7 +771,7 @@ int sbtg_get_random_str(uint8_t *buff, size_t size) {
 	return 0;
 }
 
-void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *code_offset) {
+void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *code_offset, uint8_t *key) {
 	void (*generic_fptr)(uint8_t *, uint32_t *);
 	void (*mov_fptr)(uint8_t *, uint32_t *, uint32_t, uint32_t);
 	uint32_t idx;
@@ -775,19 +784,12 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	uint32_t S;
 	uint32_t K;
 	uint32_t delta;
-	uint32_t key;
-	//uint8_t key_stream[16];
+	uint32_t key_offset;
 	uint8_t rand_chunk[256];
-	uint8_t key_stream[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x7, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16};
 	
 	gensecuence(vregs, sizeof(vregs)/sizeof(uint32_t));
 	gensecuence(zregs_order, sizeof(zregs_order)/sizeof(uint32_t));
 	gensecuence(config_order, sizeof(config_order)/sizeof(uint32_t));
-
-	/*
-	*(uint8_t*)(decryptor_buff + *code_offset) = 0xcc;
-	*code_offset += sizeof(uint8_t);
-	*/
 
 	INVOKE_RANDFUNC(delta_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]], &delta); 
 
@@ -806,17 +808,14 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 				sbtg_write(decryptor_buff, code_offset, sizeof(rand_chunk), rand_chunk);
 				break;
 			case 2:
-				key = *code_offset;
-				//sbtg_get_random_str(key_stream, sizeof(key_stream));
-				sbtg_write(decryptor_buff, code_offset, sizeof(key_stream), key_stream);
+				key_offset = *code_offset;
+				sbtg_write(decryptor_buff, code_offset, 0x10, key);
 				break;
 		}
 	}
-	printf("key: %x - K: %x - S:%x - delta:%x\n", key, K, S, delta);
+	mov_reg_dreg_disp_0 (decryptor_buff, code_offset, REG_EBP, vregs[1], 0x8); // arg1
 
-	mov_reg_dreg_disp_0 (decryptor_buff, code_offset, REG_EBP, vregs[1], 0x8);
-
-	mov_reg_dreg_disp_0 (decryptor_buff, code_offset, REG_EBP, vregs[2], 0xc);
+	mov_reg_dreg_disp_0 (decryptor_buff, code_offset, REG_EBP, vregs[2], 0xc); // arg2
 
 	for(int i = 1; i < 3; i++) {
 		INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, vregs[i]);
@@ -876,7 +875,7 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]]);
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]]);
 	
-	INVOKE_RANDFUNC(add_reg_imm_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]], (key - delta));
+	INVOKE_RANDFUNC(add_reg_imm_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]], (key_offset - delta));
 
 	INVOKE_RANDFUNC(add_reg_reg_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]], vregs[1]);
 	
@@ -977,8 +976,8 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	
 	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]]);
 	
-	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, vregs[1]); // size
-	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, REG_EBP); // buff
+	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, vregs[1]); 
+	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, REG_EBP); 
 
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]]);
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, vregs[1]);
@@ -1065,32 +1064,35 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 }
 
 
-void Sbtg(uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t flags) {
+void Sbtg(uint8_t *decryptor_buff, size_t *decryptor_buff_size, uint8_t *key, uint32_t flags) {
 	uint32_t code_offset = 0;
 	void (*generic_fptr)(uint8_t *, uint32_t *);
 	int idx;
 
-	memset(decryptor_buff, OP_NOP, decryptor_buff_size);
+	memset(decryptor_buff, OP_NOP, *decryptor_buff_size);
 
 	INVOKE_RANDFUNC(prelude_variants_arr, decryptor_buff, &code_offset);
-
+	
 	if (flags & CONF_PRESERVE_REGISTERS) {
 		INVOKE_RANDFUNC(pushad_variants_arr, decryptor_buff, &code_offset);
 	}
 
-	if (flags & CONF_RANDOM_CIPHER) {
-		INVOKE_RANDFUNC(cipher_types_arr, decryptor_buff, decryptor_buff_size, &code_offset);
+	if (flags & CONF_RC4_CIPHER) {
+		Sbtg_RC4(decryptor_buff, *decryptor_buff_size, &code_offset, key);
 	} else {
-		Sbtg_RC4(decryptor_buff, decryptor_buff_size, &code_offset);
+		Sbtg_XOR(decryptor_buff, *decryptor_buff_size, &code_offset, key);
 	}
 
 	if (flags & CONF_PRESERVE_REGISTERS) {
 		INVOKE_RANDFUNC(popad_variants_arr, decryptor_buff, &code_offset);
 	}
 
+	*decryptor_buff_size = code_offset;
+
 	INVOKE_RANDFUNC(epilogue_variants_arr, decryptor_buff, &code_offset);
 	*(uint8_t*)(decryptor_buff + code_offset) = OP_RET;
 	code_offset += sizeof(uint8_t);
+
 }
 
 bool alloc_file(int *fd, struct stat *st, const char *filename, uint8_t **buf) { 
@@ -1116,6 +1118,102 @@ static inline int _memfd_create(const char *name, unsigned int flags) {
 	return syscall(__NR_memfd_create, name, flags);
 }
 
+int craft_decryptor(uint8_t *target_buff, int target_buff_size) {
+	uint32_t flag;
+	void (*decryptor_entry)(uint8_t*, size_t);
+	uint8_t *decryptor_buff;
+	uint8_t xor_key[4];
+	uint8_t rc4_key[16];
+	size_t decryptor_buff_size;
+	uint32_t output_file_offset;
+	Elf32_Ehdr ehdr;
+	Elf32_Phdr phdr;
+	int fd;
+	
+	decryptor_buff = mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_ANON|MAP_PRIVATE, -1, 0);
+	if (decryptor_buff == MAP_FAILED) {
+		puts("[-] Failed to allocate memory for decryptor");
+		return -1;
+	}	
+	
+	decryptor_entry = (void (*)(uint8_t*, size_t))decryptor_buff;
+	decryptor_buff_size = PAGE_SIZE;
+ 	
+	if((fd = open("output.elf", O_RDWR|O_CREAT, 0777)) == -1) {
+		perror("open");
+		return -1; 
+
+	}
+	
+	sbtg_get_random_str(xor_key, sizeof(xor_key));
+	sbtg_get_random_str(rc4_key, sizeof(rc4_key));
+	output_file_offset = sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr);
+
+	Sbtg(decryptor_buff, &decryptor_buff_size, rc4_key, CONF_PRESERVE_REGISTERS|CONF_RC4_CIPHER);
+	(*decryptor_entry)(target_buff, target_buff_size);
+ 	
+	pwrite(fd, decryptor_buff, decryptor_buff_size, output_file_offset);
+	output_file_offset += decryptor_buff_size;
+
+	Sbtg(decryptor_buff, &decryptor_buff_size, xor_key, CONF_PRESERVE_REGISTERS);
+	(*decryptor_entry)(target_buff, target_buff_size);
+ 	
+	pwrite(fd, decryptor_buff, decryptor_buff_size, output_file_offset);
+	output_file_offset += decryptor_buff_size;
+	pwrite(fd, target_buff, target_buff_size, output_file_offset);
+	output_file_offset += target_buff_size;
+
+	Sbtg(decryptor_buff, &decryptor_buff_size, xor_key, CONF_PRESERVE_REGISTERS);
+	(*decryptor_entry)(target_buff, target_buff_size);
+	Sbtg(decryptor_buff, &decryptor_buff_size, rc4_key, CONF_PRESERVE_REGISTERS|CONF_RC4_CIPHER);
+	(*decryptor_entry)(target_buff, target_buff_size);
+
+	pwrite(fd, target_buff, target_buff_size, output_file_offset);
+
+	ehdr.e_ident[EI_MAG0] = 0x7f;
+	ehdr.e_ident[EI_MAG1] = 'E';
+	ehdr.e_ident[EI_MAG2] = 'L';
+	ehdr.e_ident[EI_MAG3] = 'F';
+	ehdr.e_ident[EI_CLASS] = ELFCLASS32;
+	ehdr.e_ident[EI_DATA] = ELFDATA2LSB;
+	ehdr.e_ident[EI_VERSION] = EV_CURRENT;
+	ehdr.e_ident[EI_OSABI] = ELFOSABI_LINUX;
+	ehdr.e_ident[EI_ABIVERSION] = 0;
+	ehdr.e_type = ET_EXEC;
+	ehdr.e_machine = EM_386;
+	ehdr.e_version = EV_CURRENT;
+	ehdr.e_entry = 0x8048000 + sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr);
+	ehdr.e_ehsize = sizeof(Elf32_Ehdr);
+	ehdr.e_flags = 0;
+	ehdr.e_phoff = sizeof(Elf32_Ehdr);
+	ehdr.e_phnum = 1;
+	ehdr.e_phentsize = sizeof(Elf32_Phdr);
+	ehdr.e_shnum = 0;
+	ehdr.e_shoff = 0;
+	ehdr.e_shentsize = 0;
+	ehdr.e_shstrndx = 0;
+
+	pwrite(fd, &ehdr, sizeof(Elf32_Ehdr), 0);
+
+	phdr.p_align = 0x1000;
+	phdr.p_flags = PF_R | PF_W | PF_X;
+	phdr.p_type = PT_LOAD;
+	phdr.p_filesz = PAGE_ALIGN(output_file_offset);
+	phdr.p_memsz = PAGE_ALIGN(output_file_offset);
+	phdr.p_paddr = 0x8048000;
+	phdr.p_vaddr = 0x8048000;
+	
+	pwrite(fd, &phdr,sizeof(Elf32_Phdr), sizeof(Elf32_Ehdr));
+	close(fd);
+	
+	fd = _memfd_create("", 0);
+	write(fd, target_buff, target_buff_size);
+	_execveat(fd, "", NULL, NULL, AT_EMPTY_PATH);
+
+	return 0;
+
+}
+
 int main(int argc, char **argv, char **envp) {
 	uint8_t * decryptor_buff;
 	uint8_t *target_buff;
@@ -1132,24 +1230,7 @@ int main(int argc, char **argv, char **envp) {
    	}
 	target_buff_size = st.st_size;
 
-	decryptor_buff = mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_ANON|MAP_PRIVATE, -1, 0);
-	if (decryptor_buff == MAP_FAILED) {
-		puts("[-] Failed to allocate memory for decryptor");
-		return -1;
-	}	
-
-	decryptor_entry = (void (*)(uint8_t*, size_t))decryptor_buff;
-	decryptor_buff_size = PAGE_SIZE;
-	flags = 0b00000101;
-
- 	Sbtg(decryptor_buff, decryptor_buff_size, flags);
-	(*decryptor_entry)(target_buff, target_buff_size);
- 	Sbtg(decryptor_buff, decryptor_buff_size, flags);
-	(*decryptor_entry)(target_buff, target_buff_size);
-
-	fd = _memfd_create("", 0);
-	write(fd, target_buff, target_buff_size);
-	_execveat(fd, "", NULL, NULL, AT_EMPTY_PATH);
-
+	craft_decryptor(target_buff, target_buff_size);
+	
 	return 0;	
 } 
