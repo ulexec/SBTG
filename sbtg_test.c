@@ -684,9 +684,11 @@ void call_near_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t dest){
 
 void delta_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg, uint32_t *delta) {
 	uint16_t finst[] = {OP_FLDZ, OP_FLDPI, OP_FLDN2, OP_FLDLG2};
-	int idx = genrand(sizeof(finst)/sizeof(uint16_t));
-
+	int idx;
+	
 	for (int i=0; i < genrand(20) + 5; i++) {
+		idx = genrand(sizeof(finst)/sizeof(uint16_t));
+
 		*delta = *offset;
 		*(uint16_t*)(decryptor_buff + *offset) = finst[idx];
 		*offset += sizeof(uint16_t);
