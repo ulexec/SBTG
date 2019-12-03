@@ -44,6 +44,7 @@
 #define OP_INC				0x40
 #define OP_LEA_REG_REG		0x018d
 #define OP_DIV_REG			0xf0f7
+#define OP_IDIV_REG			0xf8f7
 #define OP_ADD_REG_B_IMM	0xc083
 #define OP_ADD_REG_IMM		0xc081
 #define OP_ADD_REG_REG		0xc001
@@ -96,7 +97,12 @@ void push_0 (uint8_t *, uint32_t *, uint32_t);
 void push_1 (uint8_t *, uint32_t *, uint32_t);
 void pop_0 (uint8_t *, uint32_t *, uint32_t);
 void pop_1 (uint8_t *, uint32_t *, uint32_t);
+void zero_reg_0 (uint8_t *, uint32_t *, uint32_t);
+void zero_reg_1 (uint8_t *, uint32_t *, uint32_t);
+void zero_reg_2 (uint8_t *, uint32_t *, uint32_t);
+void zero_reg_3 (uint8_t *, uint32_t *, uint32_t);
 void div_reg_0 (uint8_t *, uint32_t *, uint32_t);
+void div_reg_1 (uint8_t *, uint32_t *, uint32_t);
 void delta_0 (uint8_t *, uint32_t *, uint32_t, uint32_t*);
 void delta_1 (uint8_t *, uint32_t *, uint32_t, uint32_t*);
 void dec_reg_0 (uint8_t *, uint32_t*, uint32_t, uint32_t);
@@ -137,12 +143,13 @@ void sbtg_write (uint8_t *, uint32_t *, size_t , uint8_t *);
 int sbtg_get_random_str(uint8_t *, size_t );
 
 void (*cipher_types_arr[])(uint8_t *, uint32_t, uint32_t *) = {Sbtg_XOR};
-void (*popad_variants_arr[])(uint8_t *, uint32_t *) = {popad_0};
+void (*popad_variants_arr[])(uint8_t *, uint32_t *) = {popad_0, popad_1};
 void (*pushad_variants_arr[])(uint8_t *, uint32_t *) = {pushad_0, pushad_1};
-void (*push_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = { push_0}; // add more atomic variant
-void (*div_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {div_reg_0}; // add more atomic variant
+void (*push_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {push_0, push_1};
+void (*div_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {div_reg_0, div_reg_1}; 
 void (*delta_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t*) = {delta_0, delta_1};
-void (*pop_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {pop_0}; // add more atomic variant
+void (*pop_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {pop_0, pop_1}; 
+void (*zero_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {zero_reg_0, zero_reg_1, zero_reg_2};
 void (*prelude_variants_arr[])(uint8_t *, uint32_t *) = {prelude_0, prelude_1};
 void (*epilogue_variants_arr[])(uint8_t *, uint32_t *) = {epiloge_0, epiloge_1};
 void (*cmp_reg_0_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t) = {cmp_reg_0_0, cmp_reg_0_1};
@@ -213,6 +220,11 @@ void div_reg_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {
 	*offset += sizeof(uint16_t);
 }
 
+void div_reg_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {
+	*(uint16_t*)(decryptor_buff + *offset) = OP_DST(OP_IDIV_REG, reg);
+	*offset += sizeof(uint16_t);
+}
+
 void push_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {
 	*(uint8_t*)(decryptor_buff + *offset) = (OP_PUSH | reg);
 	*offset += sizeof(uint8_t);
@@ -232,6 +244,15 @@ void pop_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {
 	*offset += sizeof(uint8_t);
 }
 
+void pop_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {	
+	*(uint16_t*)(decryptor_buff + *offset) = OP_SRC(0x048b, reg);	
+	*offset += sizeof(uint16_t);	
+	*(uint8_t*)(decryptor_buff + *offset) = 0x24;	
+	*offset += sizeof(uint8_t);	
+
+	INVOKE_RANDFUNC(add_reg_imm_variants_arr, decryptor_buff, offset, REG_ESP, 4);	
+}
+
 void pushad_0 (uint8_t *decryptor_buff, uint32_t *offset) {
 	*(uint8_t*)(decryptor_buff + *offset) = OP_PUSHAD;
 	*offset += sizeof(uint8_t);
@@ -239,8 +260,7 @@ void pushad_0 (uint8_t *decryptor_buff, uint32_t *offset) {
 
 void pushad_1 (uint8_t *decryptor_buff, uint32_t *offset) {
 	for (int i = 0; i < 8; i++) {
-		*(uint8_t*)(decryptor_buff + *offset) = (OP_PUSH | i);
-		*offset += sizeof(uint8_t);
+		INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, offset, i);
 	}	
 }
 
@@ -251,8 +271,7 @@ void popad_0 (uint8_t *decryptor_buff, uint32_t *offset) {
 
 void popad_1 (uint8_t *decryptor_buff, uint32_t *offset) {
 	for (int i = 7; i >= 0; i--) {
-		*(uint8_t*)(decryptor_buff + *offset) = (OP_POP | i);
-		*offset += sizeof(uint8_t);
+		INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, offset, i);
 	}	
 }
 
@@ -262,8 +281,7 @@ void prelude_0 (uint8_t *decryptor_buff, uint32_t *offset) {
 }
 
 void prelude_1 (uint8_t *decryptor_buff, uint32_t *offset) {
-	*(uint8_t*)(decryptor_buff + *offset) = (OP_PUSH | REG_EBP);
-	*offset += sizeof(uint8_t);
+	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, offset, REG_EBP);
 	*(uint16_t*)(decryptor_buff + *offset) = OP_BUILD2(OP_MOV_REG_REG, REG_EBP, REG_ESP);
         *offset += sizeof(uint16_t);	
 }
@@ -565,6 +583,33 @@ void add_reg_b_imm_2 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg1, 
 	}
 }
 
+void zero_reg_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {	
+	mov_reg_imm_0 (decryptor_buff, offset, reg, 0x0);
+}
+
+void zero_reg_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {	
+	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, offset, reg, reg);	
+}
+
+void zero_reg_2 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {	
+	INVOKE_RANDFUNC(sub_reg_reg_variants_arr, decryptor_buff, offset, reg, reg);	
+}
+
+void zero_reg_3 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {
+	uint32_t randreg = reg;
+	while(randreg == reg){
+		randreg = genrand(4);
+	} 
+	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, offset, randreg);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, reg, randreg);
+
+	*(uint16_t*)(decryptor_buff + *offset) = OP_DST(OP_NOT, randreg);
+	*offset += sizeof(uint16_t);
+
+	INVOKE_RANDFUNC(add_reg_reg_variants_arr, decryptor_buff, offset, reg, randreg);
+	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, offset, randreg);
+}
+
 void cjmp_near_imm_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t dest, int mask) {
 	*(uint8_t*)(decryptor_buff + *offset) = OP_CJMP_NEAR_IMM | mask;
 	*offset += sizeof(uint8_t);
@@ -784,7 +829,7 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]]);
 
-	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[0], vregs[0]);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, vregs[0]);
 	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]]);
 
 	INVOKE_RANDFUNC(sub_b_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[0], vregs[2]);
@@ -800,9 +845,9 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]]);
 	
-	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[1], vregs[1]);
-	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[2], vregs[2]);
-	
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, vregs[1]);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, vregs[2]);
+
 	loop_start = *code_offset;	
 		
 	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]]);
@@ -814,7 +859,8 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, vregs[0]);
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, vregs[2]);
 	mov_reg_imm_0 (decryptor_buff, code_offset, REG_ECX, 0x10);
-	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, code_offset, REG_EDX, REG_EDX);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, REG_EDX);
+
 	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, code_offset, REG_ECX, REG_EAX);
 	INVOKE_RANDFUNC(div_variants_arr, decryptor_buff, code_offset, REG_ECX);
 	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, code_offset, REG_EDX, REG_EBP);
@@ -855,15 +901,15 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 
 	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]]);
 
-	mov_reg_imm_0 (decryptor_buff, code_offset, vregs[0], 0x0);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, vregs[0]);
 	
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[0]]);
-	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[3], vregs[3]);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, vregs[3]);
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, vregs[3]);
-	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[1], vregs[1]);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, vregs[1]);
 	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, vregs[3]);
 
-	mov_reg_imm_0 (decryptor_buff, code_offset, REG_EBP, 0x0);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, REG_EBP);
 	
 	loop_start = *code_offset;
 
@@ -936,10 +982,10 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, vregs[1]);
 	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, code_offset, REG_EBP);
 
-	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[0], vregs[0]); // counter
-	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, code_offset, vregs[3], vregs[3]); // eax
-	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[1]], zregs[zregs_order[1]]);   // S
-	INVOKE_RANDFUNC(xor_reg_reg_variants_arr, decryptor_buff, code_offset, REG_EBP, vregs[2]);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, vregs[0]);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, vregs[3]);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, zregs[zregs_order[1]]);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, code_offset, vregs[2]);
 
 	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, REG_EBP);
 	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, code_offset, vregs[1]);
