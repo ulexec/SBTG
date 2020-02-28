@@ -34,7 +34,6 @@
 #define CJMP_NZ_			0x1
 #define CJMP_Z_				0x0
 #define SIB_MASK			0x4000
-#define PAGE_SIZE			0x1000
 #define OP_PUSHAD			0x60
 #define OP_PUSH				0x50
 #define OP_PUSH_DREG		0x30ff
