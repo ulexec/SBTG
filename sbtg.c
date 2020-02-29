@@ -151,12 +151,12 @@ void sbtg_write (uint8_t *, uint32_t *, size_t , uint8_t *);
 int sbtg_get_random_str(uint8_t *, size_t );
 
 //void (*cipher_types_arr[])(uint8_t *, uint32_t, uint32_t *) = {Sbtg_XOR};
-void (*popad_variants_arr[])(uint8_t *, uint32_t *) = {popad_0, popad_1};
+void (*popad_variants_arr[])(uint8_t *, uint32_t *) = {popad_0, /*popad_1*/};
 void (*pushad_variants_arr[])(uint8_t *, uint32_t *) = {pushad_0, pushad_1};
-void (*push_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {push_0, push_1};
+void (*push_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {push_0, /*push_1*/};
 void (*div_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {div_reg_0, div_reg_1}; 
 void (*delta_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t*) = {delta_0, delta_1};
-void (*pop_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {pop_0, pop_1}; 
+void (*pop_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {pop_0, /*pop_1*/}; 
 void (*zero_reg_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {zero_reg_0, zero_reg_1, zero_reg_2};
 void (*prelude_variants_arr[])(uint8_t *, uint32_t *) = {prelude_0, prelude_1};
 void (*epilogue_variants_arr[])(uint8_t *, uint32_t *) = {epiloge_0, epiloge_1};
@@ -186,7 +186,7 @@ void gensecuence(uint32_t *array, size_t size){
     	int count;
     	int i=0;
 
-    	srand(time(NULL));
+    	//srand(time(NULL));
 
     	for (count = 0; count < size; count++){
 		int val = REG_ESP;
@@ -215,7 +215,7 @@ void gensecuence(uint32_t *array, size_t size){
 
 uint32_t genrand(uint32_t limit) {
 	int c, n = 0;
-  	srand(time(NULL) - rand());
+  	//srand(time(NULL) - rand());
 
   	for (c = 0; c < rand() % 2; c++) {
     		n += rand();
@@ -253,7 +253,32 @@ void pop_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {
 }
 
 void pop_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {	
-	*(uint16_t*)(decryptor_buff + *offset) = OP_SRC(0x048b, reg);	
+	uint16_t op;
+
+	switch(reg) {
+		case REG_EAX:
+			op = 0x048b;
+			break;
+		case REG_EBX:
+			op = 0x1c8b; 
+			break;
+		case REG_ECX:
+			op = 0x0c8b;
+			break;
+		case REG_EDX:
+			op = 0x148b;
+			break;
+		case REG_ESI:
+			op = 0x348b;
+			break;
+		case REG_EDI:
+			op = 0x3c8b;
+			break;
+		case REG_EBP:
+			op = 0x2c8b;
+			break;
+	}
+	*(uint16_t*)(decryptor_buff + *offset) = op;	
 	*offset += sizeof(uint16_t);	
 	*(uint8_t*)(decryptor_buff + *offset) = 0x24;	
 	*offset += sizeof(uint8_t);	
@@ -1204,6 +1229,9 @@ int craft_decryptor(uint8_t *target_buff, int target_buff_size) {
 	uint8_t rc4_key[16];
 	size_t decryptor_buff_size;
 	uint32_t output_file_offset;
+	int iterations;
+	uint8_t *rc4_keys;
+	uint8_t *xor_keys;
 	Elf32_Ehdr ehdr;
 	Elf32_Phdr phdr;
 	int fd;
@@ -1225,26 +1253,35 @@ int craft_decryptor(uint8_t *target_buff, int target_buff_size) {
 
 	sbtg_get_random_str(xor_key, sizeof(xor_key));
 	sbtg_get_random_str(rc4_key, sizeof(rc4_key));
-	output_file_offset = sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr);
-
-	Sbtg(decryptor_buff, &decryptor_buff_size, rc4_key, CONF_PRESERVE_REGISTERS|CONF_RC4_CIPHER);
-	(*decryptor_entry)(target_buff, target_buff_size);
-	Sbtg(decryptor_buff, &decryptor_buff_size, xor_key, CONF_PRESERVE_REGISTERS);
-	(*decryptor_entry)(target_buff, target_buff_size);
 	
+	srand(time(NULL));
+	iterations = 100 + rand()%200;
+
+	for (int i = 0; i < iterations; i++) {
+		Sbtg(decryptor_buff, &decryptor_buff_size, rc4_key, CONF_PRESERVE_REGISTERS|CONF_RC4_CIPHER);
+		(*decryptor_entry)(target_buff, target_buff_size);
+		Sbtg(decryptor_buff, &decryptor_buff_size, xor_key, CONF_PRESERVE_REGISTERS);
+		(*decryptor_entry)(target_buff, target_buff_size);
+	}
+
+	output_file_offset = sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr);
 	pwrite(fd, target_buff, target_buff_size, output_file_offset);
 	output_file_offset += target_buff_size;
 	
 	g_TargetBuff = 0x8048000 + sizeof(Elf32_Ehdr) + sizeof(Elf32_Phdr);
 	g_TargetBuff_size = target_buff_size;
 
-	Sbtg(decryptor_buff, &decryptor_buff_size, xor_key, CONF_PRESERVE_REGISTERS|CONF_OUTPUT|CONF_START);
-	pwrite(fd, decryptor_buff, decryptor_buff_size, output_file_offset);
-	output_file_offset += decryptor_buff_size;
+	for (int i = 0; i < iterations; i++) {
+		Sbtg(decryptor_buff, &decryptor_buff_size, xor_key, i == 0 ?
+			CONF_PRESERVE_REGISTERS|CONF_OUTPUT|CONF_START : CONF_PRESERVE_REGISTERS|CONF_OUTPUT);
+		pwrite(fd, decryptor_buff, decryptor_buff_size, output_file_offset);
+		output_file_offset += decryptor_buff_size;
 
-	Sbtg(decryptor_buff, &decryptor_buff_size, rc4_key, CONF_PRESERVE_REGISTERS|CONF_RC4_CIPHER|CONF_OUTPUT|CONF_END);
-	pwrite(fd, decryptor_buff, decryptor_buff_size, output_file_offset);
-	output_file_offset += decryptor_buff_size;
+		Sbtg(decryptor_buff, &decryptor_buff_size, rc4_key, i == iterations-1 ? 
+			CONF_PRESERVE_REGISTERS|CONF_RC4_CIPHER|CONF_OUTPUT|CONF_END : CONF_PRESERVE_REGISTERS|CONF_RC4_CIPHER|CONF_OUTPUT);
+		pwrite(fd, decryptor_buff, decryptor_buff_size, output_file_offset);
+		output_file_offset += decryptor_buff_size;
+	}
 
 	ehdr.e_ident[EI_MAG0] = 0x7f;
 	ehdr.e_ident[EI_MAG1] = 'E';
