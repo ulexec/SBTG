@@ -152,7 +152,7 @@ int sbtg_get_random_str(uint8_t *, size_t );
 
 //void (*cipher_types_arr[])(uint8_t *, uint32_t, uint32_t *) = {Sbtg_XOR};
 void (*popad_variants_arr[])(uint8_t *, uint32_t *) = {popad_0, /*popad_1*/};
-void (*pushad_variants_arr[])(uint8_t *, uint32_t *) = {pushad_0, pushad_1};
+void (*pushad_variants_arr[])(uint8_t *, uint32_t *) = {pushad_0, /*pushad_1*/};
 void (*push_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {push_0, /*push_1*/};
 void (*div_variants_arr[])(uint8_t *, uint32_t *, uint32_t) = {div_reg_0, div_reg_1}; 
 void (*delta_variants_arr[])(uint8_t *, uint32_t *, uint32_t, uint32_t*) = {delta_0, delta_1};
@@ -185,8 +185,6 @@ void gensecuence(uint32_t *array, size_t size){
 	int x;
     	int count;
     	int i=0;
-
-    	//srand(time(NULL));
 
     	for (count = 0; count < size; count++){
 		int val = REG_ESP;
@@ -239,9 +237,34 @@ void push_0 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {
 }
 
 void push_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {	
+	uint16_t op;
+
 	INVOKE_RANDFUNC(sub_reg_imm_variants_arr, decryptor_buff, offset, REG_ESP, 4);
 
-	*(uint16_t*)(decryptor_buff + *offset) = OP_SRC(0x0489, reg);
+	switch(reg) {
+		case REG_EAX:
+			op = 0x0489;
+			break;
+		case REG_EBX:
+			op = 0x1c89; 
+			break;
+		case REG_ECX:
+			op = 0x0c89;
+			break;
+		case REG_EDX:
+			op = 0x1489;
+			break;
+		case REG_ESI:
+			op = 0x3489;
+			break;
+		case REG_EDI:
+			op = 0x3c89;
+			break;
+		case REG_EBP:
+			op = 0x2c89;
+			break;
+	}
+	*(uint16_t*)(decryptor_buff + *offset) = op;
 	*offset += sizeof(uint16_t);
 	*(uint8_t*)(decryptor_buff + *offset) = 0x24;
 	*offset += sizeof(uint8_t);
@@ -283,7 +306,7 @@ void pop_1 (uint8_t *decryptor_buff, uint32_t *offset, uint32_t reg) {
 	*(uint8_t*)(decryptor_buff + *offset) = 0x24;	
 	*offset += sizeof(uint8_t);	
 
-	INVOKE_RANDFUNC(add_reg_imm_variants_arr, decryptor_buff, offset, REG_ESP, 4);	
+	INVOKE_RANDFUNC(add_reg_b_imm_variants_arr, decryptor_buff, offset, REG_ESP, 4);	
 }
 
 void pushad_0 (uint8_t *decryptor_buff, uint32_t *offset) {
@@ -1192,8 +1215,15 @@ void Sbtg(uint8_t *decryptor_buff, size_t *decryptor_buff_size, uint8_t *key, ui
 	INVOKE_RANDFUNC(epilogue_variants_arr, decryptor_buff, &code_offset);
 
 	if (flags & CONF_OUTPUT) {
-		*(uint8_t*)(decryptor_buff + code_offset) = OP_NOP;
-		code_offset += sizeof(uint8_t);
+		char byte;
+		sbtg_get_random_str(&byte, sizeof(char));
+
+		INVOKE_RANDFUNC(cmp_reg_0_variants_arr, decryptor_buff, &code_offset, REG_ESP, byte);
+		cjmp_near_imm_0(decryptor_buff, &code_offset, code_offset-(rand() & 0xff), CJMP_Z_);
+
+		/**(uint8_t*)(decryptor_buff + code_offset) = OP_NOP;
+		code_offset += sizeof(uint8_t);*/
+
 	} else {
 		*(uint8_t*)(decryptor_buff + code_offset) = OP_RET;
 		code_offset += sizeof(uint8_t);
@@ -1255,7 +1285,7 @@ int craft_decryptor(uint8_t *target_buff, int target_buff_size) {
 	sbtg_get_random_str(rc4_key, sizeof(rc4_key));
 	
 	srand(time(NULL));
-	iterations = 100 + rand()%200;
+	iterations = 100 + rand() % 200;
 
 	for (int i = 0; i < iterations; i++) {
 		Sbtg(decryptor_buff, &decryptor_buff_size, rc4_key, CONF_PRESERVE_REGISTERS|CONF_RC4_CIPHER);
